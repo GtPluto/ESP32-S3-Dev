@@ -1,5 +1,5 @@
 #include <Adafruit_NeoPixel.h> // WS2812 驱动库
-#include <BLEServer.h>
+#include <NimBLEServer.h>
 
 #define LED_PIN 48  // WS2812 数据引脚
 #define LED_COUNT 1 // LED数量
@@ -8,15 +8,15 @@ Adafruit_NeoPixel pixels(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
 bool deviceConnected = false;
 
 // 蓝牙连接状态回调
-class LightCallbacks : public BLEServerCallbacks
+class LightCallbacks : public NimBLEServerCallbacks
 {
-    void onConnect(BLEServer *pServer)
+    void onConnect(NimBLEServer *pServer)
     {
         deviceConnected = true;
         pixels.setBrightness(32); // 连接后重置亮度
     }
 
-    void onDisconnect(BLEServer *pServer)
+    void onDisconnect(NimBLEServer *pServer)
     {
         deviceConnected = false;
         pServer->startAdvertising(); // 断开后重新广播
