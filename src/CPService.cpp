@@ -1,7 +1,7 @@
 #include "CPService.h"
 #include "BLE2902.h"
 #include <BLEDevice.h>
-
+#include <Arduino.h>
 CPService::CPService(BLEServer *server)
 {
     // 创建 CP 服务
@@ -36,15 +36,53 @@ CPService::CPService(BLEServer *server)
 
 void CPService::updateMeasurement(int16_t power)
 {
-    uint8_t flags = 0x00; // 基本功率数据
-    uint8_t data[3];
+    if (!cpMeasurementChar)
+    {
+        Serial.println("[ERROR] CPService: 测量特征值未初始化");
+        return;
+    }
 
-    data[0] = flags;
-    data[1] = power & 0xFF;
-    data[2] = (power >> 8) & 0xFF;
+    if (!service || !service->getServer())
+    {
+        Serial.println("[ERROR] CPService: 服务未初始化或服务器无效");
+        return;
+    }
 
-    cpMeasurementChar->setValue(data, sizeof(data));
-    cpMeasurementChar->notify();
+    try
+    {
+        // 分配缓冲区
+        uint8_t data[4] = {0}; // flags (1) + power (2) + reserved (1)
+        size_t dataLen = 0;
+
+        // 设置标志位 (0x20 表示瞬时功率测量)
+        data[dataLen++] = 0x20;
+
+        // 添加功率数据
+        memcpy(&data[dataLen], &power, sizeof(power));
+        dataLen += sizeof(power);
+
+        // 添加保留字节
+        data[dataLen++] = 0;
+
+        // 验证数据长度
+        if (dataLen > sizeof(data))
+        {
+            Serial.println("[CP] 数据长度超出缓冲区大小");
+            return;
+        }
+
+        // 更新特征值
+        cpMeasurementChar->setValue(data, dataLen);
+        cpMeasurementChar->notify();
+    }
+    catch (const std::exception &e)
+    {
+        Serial.printf("[CP] 更新数据时发生异常: %s\n", e.what());
+    }
+    catch (...)
+    {
+        Serial.println("[CP] 更新数据时发生未知异常");
+    }
 }
 
 void CPService::onCPMeasurementWrite(BLECharacteristic *pChar)
