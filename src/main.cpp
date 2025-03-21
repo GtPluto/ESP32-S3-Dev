@@ -1,7 +1,5 @@
 #include <Arduino.h>
-#include <BLEDevice.h>
-#include <BLEUtils.h>
-#include <BLEServer.h>
+#include <NimBLEDevice.h>
 #include "BikeData.h"
 #include "BatteryService.h"
 #include "CSCService.h"
@@ -23,22 +21,23 @@ unsigned long lastActiveTime = 0;
 const unsigned long WATCHDOG_TIMEOUT = 10000; // 10秒超时
 
 BikeData bikeData;
-BLEServer *pServer = nullptr;
+NimBLEServer *pServer = nullptr;
 BatteryService *pBatteryService = nullptr;
 CSCService *pCSCService = nullptr;
 CPService *pCPService = nullptr;
 DeviceInfoService *pDeviceInfoService = nullptr;
 
 // 连接状态回调
-class ServerCallbacks : public BLEServerCallbacks
+class ServerCallbacks : public NimBLEServerCallbacks
 {
-    void onConnect(BLEServer *pServer)
+    void onConnect(NimBLEServer *pServer, ble_gap_conn_desc *desc)
     {
         digitalWrite(LED_PIN, HIGH);
         if (DEBUG_BLE)
             Serial.println("[BLE] 设备已连接");
     }
-    void onDisconnect(BLEServer *pServer)
+
+    void onDisconnect(NimBLEServer *pServer, ble_gap_conn_desc *desc)
     {
         digitalWrite(LED_PIN, LOW);
         if (DEBUG_BLE)
@@ -58,11 +57,15 @@ bool setupBLE()
     {
         if (DEBUG_BLE)
             Serial.println("[BLE] 初始化BLE设备...");
-        BLEDevice::init("Indoor Bike");
+        NimBLEDevice::init("Indoor Bike");
+
+        // 配置广播参数
+        NimBLEDevice::setPower(ESP_PWR_LVL_P9);            // +9dBm
+        NimBLEDevice::setSecurityAuth(false, false, true); // 不需要配对
 
         if (DEBUG_BLE)
             Serial.println("[BLE] 创建BLE服务器...");
-        pServer = BLEDevice::createServer();
+        pServer = NimBLEDevice::createServer();
         if (!pServer)
         {
             Serial.println("[ERROR] 创建BLE服务器失败");
@@ -113,21 +116,23 @@ bool setupBLE()
             Serial.printf("[MEM] Free heap after services: %d\n", ESP.getFreeHeap());
         }
 
-        // 启动服务
+        // 启动广播
         if (DEBUG_BLE)
             Serial.println("[BLE] 启动广播...");
-        auto advertising = pServer->getAdvertising();
-        if (!advertising)
+
+        NimBLEAdvertising *pAdvertising = NimBLEDevice::getAdvertising();
+        if (!pAdvertising)
         {
             Serial.println("[ERROR] 获取广播对象失败");
             return false;
         }
 
-        advertising->addServiceUUID(BAT_UUID);
-        advertising->addServiceUUID(CSC_UUID);
-        advertising->addServiceUUID(CP_UUID);
-        advertising->setAppearance(0x0480); // Cycling appearance
-        advertising->start();
+        pAdvertising->addServiceUUID(BAT_UUID);
+        pAdvertising->addServiceUUID(CSC_UUID);
+        pAdvertising->addServiceUUID(CP_UUID);
+        pAdvertising->setAppearance(0x0480); // Cycling appearance
+        pAdvertising->setScanResponse(true);
+        pAdvertising->start();
 
         if (DEBUG_BLE)
             Serial.println("[BLE] BLE服务已启动");

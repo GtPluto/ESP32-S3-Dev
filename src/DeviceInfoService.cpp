@@ -1,7 +1,7 @@
 #include "DeviceInfoService.h"
-#include "BLEConfig.h"
+#include <Arduino.h>
 
-DeviceInfoService::DeviceInfoService(BLEServer *server)
+DeviceInfoService::DeviceInfoService(NimBLEServer *server)
 {
     service = server->createService(DI_UUID);
 
@@ -16,12 +16,14 @@ DeviceInfoService::DeviceInfoService(BLEServer *server)
     createReadOnlyCharacteristic(DI_HARDWARE_REV_UUID, "0.1.1");
     createReadOnlyCharacteristic(DI_SOFTWARE_REV_UUID, "1.0beta");
     createReadOnlyCharacteristic(DI_MANUFACTURER_UUID, "t-j");
+
+    service->start();
 }
 
-void DeviceInfoService::createReadOnlyCharacteristic(BLEUUID uuid, const char *value)
+void DeviceInfoService::createReadOnlyCharacteristic(NimBLEUUID uuid, const char *value)
 {
-    BLECharacteristic *charac = service->createCharacteristic(
+    NimBLECharacteristic *charac = service->createCharacteristic(
         uuid,
-        BLECharacteristic::PROPERTY_READ);
+        NIMBLE_PROPERTY::READ);
     charac->setValue(value);
 }

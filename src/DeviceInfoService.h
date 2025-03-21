@@ -4,9 +4,9 @@
 class DeviceInfoService
 {
 public:
-    DeviceInfoService(BLEServer *server);
+    DeviceInfoService(NimBLEServer *server);
 
 private:
-    BLEService *service;
-    void createReadOnlyCharacteristic(BLEUUID uuid, const char *value);
+    NimBLEService *service;
+    void createReadOnlyCharacteristic(NimBLEUUID uuid, const char *value);
 };

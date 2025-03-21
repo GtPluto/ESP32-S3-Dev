@@ -1,9 +1,7 @@
 #include "CSCService.h"
-#include "BLE2902.h"
 #include <Arduino.h>
-#include <BLEDevice.h>
 
-CSCService::CSCService(BLEServer *server)
+CSCService::CSCService(NimBLEServer *server)
 {
     if (!server)
     {
@@ -24,8 +22,8 @@ CSCService::CSCService(BLEServer *server)
         // 创建 CSC 测量特征值
         cscMeasurementChar = service->createCharacteristic(
             CSC_MEASUREMENT_UUID,
-            BLECharacteristic::PROPERTY_READ |
-                BLECharacteristic::PROPERTY_NOTIFY);
+            NIMBLE_PROPERTY::READ |
+                NIMBLE_PROPERTY::NOTIFY);
 
         if (!cscMeasurementChar)
         {
@@ -33,22 +31,14 @@ CSCService::CSCService(BLEServer *server)
             return;
         }
 
-        auto descriptor = new BLE2902();
-        if (!descriptor)
-        {
-            Serial.println("[ERROR] CSCService: 创建描述符失败");
-            return;
-        }
-        cscMeasurementChar->addDescriptor(descriptor);
-
         // 初始化特征值
-        uint8_t initialValue = 0;
-        cscMeasurementChar->setValue(&initialValue, 1);
+        uint8_t initialValue[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+        cscMeasurementChar->setValue(initialValue, sizeof(initialValue));
 
         // 创建 CSC 特征值
         cscFeatureChar = service->createCharacteristic(
             CSC_FEATURE_UUID,
-            BLECharacteristic::PROPERTY_READ);
+            NIMBLE_PROPERTY::READ);
 
         if (!cscFeatureChar)
         {
@@ -62,7 +52,7 @@ CSCService::CSCService(BLEServer *server)
         // 创建传感器位置特征值
         sensorLocationChar = service->createCharacteristic(
             SENSOR_LOCATION_UUID,
-            BLECharacteristic::PROPERTY_READ);
+            NIMBLE_PROPERTY::READ);
 
         if (!sensorLocationChar)
         {
@@ -90,89 +80,79 @@ CSCService::CSCService(BLEServer *server)
 void CSCService::updateMeasurement(uint32_t wheelRev, uint16_t wEventTime,
                                    uint32_t crankRev, uint16_t cEventTime)
 {
+    static unsigned long lastNotifyTime = 0;
+    const unsigned long MIN_NOTIFY_INTERVAL = 200; // 最小通知间隔（毫秒）
+
     if (!service || !cscMeasurementChar)
     {
-        Serial.println("[CSC] 服务或特征未初始化");
+        return;
+    }
+
+    // 检查连接状态
+    if (!NimBLEDevice::getServer()->getConnectedCount())
+    {
+        return;
+    }
+
+    // 检查通知间隔
+    unsigned long currentTime = millis();
+    if (currentTime - lastNotifyTime < MIN_NOTIFY_INTERVAL)
+    {
         return;
     }
 
     try
     {
-        // 计算所需的总数据长度
-        const size_t FLAGS_SIZE = 1;
-        const size_t WHEEL_REV_SIZE = sizeof(uint32_t);
-        const size_t WHEEL_EVENT_SIZE = sizeof(uint16_t);
-        const size_t CRANK_REV_SIZE = sizeof(uint32_t);
-        const size_t CRANK_EVENT_SIZE = sizeof(uint16_t);
-
-        const size_t TOTAL_SIZE = FLAGS_SIZE + WHEEL_REV_SIZE + WHEEL_EVENT_SIZE +
-                                  CRANK_REV_SIZE + CRANK_EVENT_SIZE;
-
-        // 分配缓冲区
-        uint8_t data[TOTAL_SIZE] = {0};
-        size_t offset = 0;
+        // 准备数据
+        uint8_t data[11] = {0}; // 固定大小的缓冲区
 
         // 设置标志位 (0x03 表示同时包含车轮和曲柄数据)
-        data[offset++] = 0x03;
+        data[0] = 0x03;
 
         // 添加车轮数据 (小端序)
-        data[offset++] = wheelRev & 0xFF;
-        data[offset++] = (wheelRev >> 8) & 0xFF;
-        data[offset++] = (wheelRev >> 16) & 0xFF;
-        data[offset++] = (wheelRev >> 24) & 0xFF;
+        data[1] = wheelRev & 0xFF;
+        data[2] = (wheelRev >> 8) & 0xFF;
+        data[3] = (wheelRev >> 16) & 0xFF;
+        data[4] = (wheelRev >> 24) & 0xFF;
 
         // 添加车轮事件时间 (小端序)
-        data[offset++] = wEventTime & 0xFF;
-        data[offset++] = (wEventTime >> 8) & 0xFF;
+        data[5] = wEventTime & 0xFF;
+        data[6] = (wEventTime >> 8) & 0xFF;
 
         // 添加曲柄数据 (小端序)
-        data[offset++] = crankRev & 0xFF;
-        data[offset++] = (crankRev >> 8) & 0xFF;
-        data[offset++] = (crankRev >> 16) & 0xFF;
-        data[offset++] = (crankRev >> 24) & 0xFF;
+        data[7] = crankRev & 0xFF;
+        data[8] = (crankRev >> 8) & 0xFF;
+        data[9] = (crankRev >> 16) & 0xFF;
+        data[10] = (crankRev >> 24) & 0xFF;
 
-        // 添加曲柄事件时间 (小端序)
-        data[offset++] = cEventTime & 0xFF;
-        data[offset++] = (cEventTime >> 8) & 0xFF;
-
-        // 验证数据长度
-        if (offset != TOTAL_SIZE)
-        {
-            Serial.printf("[CSC] 数据长度错误: 预期 %d, 实际 %d\n", TOTAL_SIZE, offset);
-            return;
-        }
-
-        // 更新特征值
-        cscMeasurementChar->setValue(data, TOTAL_SIZE);
+        // 更新特征值并通知
+        cscMeasurementChar->setValue(data, sizeof(data));
         cscMeasurementChar->notify();
+        lastNotifyTime = currentTime;
 
         if (Serial.available())
         {
-            Serial.printf("[CSC] 数据更新成功: flags=0x%02X, wheel=%u, wTime=%u, crank=%u, cTime=%u\n",
-                          data[0], wheelRev, wEventTime, crankRev, cEventTime);
+            Serial.printf("[CSC] 数据更新: w=%u, wt=%u, c=%u, ct=%u\n",
+                          wheelRev, wEventTime, crankRev, cEventTime);
         }
-    }
-    catch (const std::exception &e)
-    {
-        Serial.printf("[CSC] 更新数据时发生异常: %s\n", e.what());
     }
     catch (...)
     {
-        Serial.println("[CSC] 更新数据时发生未知异常");
+        Serial.println("[CSC] 更新数据失败");
     }
 }
 
-void CSCService::onCSCMeasurementWrite(BLECharacteristic *pChar)
+void CSCService::onCSCMeasurementWrite(NimBLECharacteristic *pChar)
 {
     // 处理写入请求
 }
 
-void CSCService::onCSCFeatureWrite(BLECharacteristic *pChar)
+void CSCService::onCSCFeatureWrite(NimBLECharacteristic *pChar)
 {
     // 处理特征值写入
 }
 
-void CSCService::onSensorLocationWrite(BLECharacteristic *pChar)
+void CSCService::onSensorLocationWrite(NimBLECharacteristic *pChar)
 {
     // 处理传感器位置写入
 }

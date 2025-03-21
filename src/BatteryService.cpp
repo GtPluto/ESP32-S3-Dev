@@ -1,19 +1,19 @@
 #include "BatteryService.h"
-#include "BLE2902.h"
+#include <Arduino.h>
 
-BatteryService::BatteryService(BLEServer *server)
+BatteryService::BatteryService(NimBLEServer *server)
 {
     service = server->createService(BAT_UUID);
 
     battLevelChar = service->createCharacteristic(
         BAT_LEVEL_UUID,
-        BLECharacteristic::PROPERTY_READ |
-            BLECharacteristic::PROPERTY_NOTIFY);
+        NIMBLE_PROPERTY::READ |
+            NIMBLE_PROPERTY::NOTIFY);
 
     // 设置初始值
     uint8_t level = 100;
     battLevelChar->setValue(&level, 1);
-    battLevelChar->addDescriptor(new BLE2902());
+    service->start();
 }
 
 void BatteryService::updateLevel(uint8_t level)

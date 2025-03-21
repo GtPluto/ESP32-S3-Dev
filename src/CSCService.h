@@ -5,18 +5,18 @@
 class CSCService
 {
 public:
-    CSCService(BLEServer *server);
+    CSCService(NimBLEServer *server);
     void updateMeasurement(uint32_t wheelRev, uint16_t wEventTime,
                            uint32_t crankRev, uint16_t cEventTime);
 
 private:
-    BLEService *service;
-    BLECharacteristic *cscMeasurementChar;
-    BLECharacteristic *cscFeatureChar;
-    BLECharacteristic *sensorLocationChar;
+    NimBLEService *service;
+    NimBLECharacteristic *cscMeasurementChar;
+    NimBLECharacteristic *cscFeatureChar;
+    NimBLECharacteristic *sensorLocationChar;
 
     // 特征值回调函数
-    void onCSCMeasurementWrite(BLECharacteristic *pChar);
-    void onCSCFeatureWrite(BLECharacteristic *pChar);
-    void onSensorLocationWrite(BLECharacteristic *pChar);
+    void onCSCMeasurementWrite(NimBLECharacteristic *pChar);
+    void onCSCFeatureWrite(NimBLECharacteristic *pChar);
+    void onSensorLocationWrite(NimBLECharacteristic *pChar);
 };

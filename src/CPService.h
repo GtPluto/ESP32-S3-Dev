@@ -5,17 +5,17 @@
 class CPService
 {
 public:
-    CPService(BLEServer *server);
+    CPService(NimBLEServer *server);
     void updateMeasurement(int16_t power);
 
 private:
-    BLEService *service;
-    BLECharacteristic *cpMeasurementChar;
-    BLECharacteristic *cpFeatureChar;
-    BLECharacteristic *sensorLocationChar;
+    NimBLEService *service;
+    NimBLECharacteristic *cpMeasurementChar;
+    NimBLECharacteristic *cpFeatureChar;
+    NimBLECharacteristic *sensorLocationChar;
 
     // 特征值回调函数
-    static void onCPMeasurementWrite(BLECharacteristic *pChar);
-    static void onCPFeatureWrite(BLECharacteristic *pChar);
-    static void onSensorLocationWrite(BLECharacteristic *pChar);
+    static void onCPMeasurementWrite(NimBLECharacteristic *pChar);
+    static void onCPFeatureWrite(NimBLECharacteristic *pChar);
+    static void onSensorLocationWrite(NimBLECharacteristic *pChar);
 };
