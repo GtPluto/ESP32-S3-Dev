@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <NimBLEDevice.h>
 #include "BikeData.h"
+#include "MockBikeDataSource.h"
 #include "BatteryService.h"
 #include "CSCService.h"
 #include "CPService.h"
@@ -20,7 +21,10 @@ volatile bool hadException = false;
 unsigned long lastActiveTime = 0;
 const unsigned long WATCHDOG_TIMEOUT = 10000; // 10秒超时
 
-BikeData bikeData;
+// 创建全局对象
+std::unique_ptr<BikeDataSource> dataSource(new MockBikeDataSource());
+BikeData bikeData(std::move(dataSource));
+
 NimBLEServer *pServer = nullptr;
 BatteryService *pBatteryService = nullptr;
 CSCService *pCSCService = nullptr;
